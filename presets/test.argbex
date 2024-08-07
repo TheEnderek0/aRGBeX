@@ -1,0 +1,30 @@
+<Sequences>
+
+s1(a) {                                   // Sequences are like functions that can be invoked in the Playback section
+    fill(all c(255 255 255)) 
+    wait(0.2)
+    fill(all c(255 0 255))
+}
+
+s2(param1) {                             // They can have parameters like functions!
+    fill(all c(255 255 255))
+    loop(until param1 force) {                // This is a loop that loops the code below until the playback reaches param1 time.
+        fill(checker(0 2 2) c(0 255 0))     // Added force keyword means that nothing will be executed after param1 the function will stop there
+        wait(0.2)
+        fill(checker(2 2 2) c(255 0 0))
+        wait(0.2)
+        fill(all c(255 255 255))
+    }
+}
+    
+s3(param) {
+    loop(for param) {
+        fill(all c(255 255 255))
+    }
+    someshit()
+}
+
+
+<Playback>
+00:00:00 nothing
+00:00:50 s1()
