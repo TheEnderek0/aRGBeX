@@ -163,3 +163,4 @@ cython_debug/
 
 # SPECIFIC
 r.txt
+.vscode
