@@ -58,9 +58,9 @@ def ParseFile(path: Path, timeline: SD.Timeline):
         if parsemode == ParsingMode.SEQUENCES: # This means a function declaration, since we are outside one (mode defines this)
             parsemode = ParsingMode.SEQ_AWAIT_BRACKET
             name, params, end = FnFormatParser(line, line_id)
-            print(f"{name}, {str(params)}, {end}")
+            #print(f"{name}, {str(params)}, {end}")
             current_sequence = name
-            sequences_database[name] = SD.Sequence((name, params, end))
+            sequences_database[name] = SD.UserDefinedSequence(name, params)
 
             if "{" in end:
                 parsemode = ParsingMode.SEQ_FN
@@ -77,22 +77,22 @@ def ParseFile(path: Path, timeline: SD.Timeline):
             #No continue keyword! We are immediatelly processing the line
         
         if parsemode == ParsingMode.SEQ_FN:
-            if "loop" in line:
+            if "loop" in line: # LOOPS ARE NOT CURRENTLY SUPPORTED!
                 loop_recursion += 1
             if "}" in line:
                 if loop_recursion == 0:
                     parsemode = ParsingMode.SEQUENCES
                 else:
                     seq = ("endloop", [])
-                    sequences_database[current_sequence].addActionLine(seq)
-                    print(seq)
+                    sequences_database[current_sequence].addAction(seq)
+                    #print(seq)
                     loop_recursion -= 1
             else:
                 seq = FnFormatParser(line, line_id, True)
-                print(seq)
-                sequences_database[current_sequence].addActionLine(seq)
+                sequences_database[current_sequence].addActionRaw(seq)
             
             continue
+        
 
         #========================
         # PLAYBACK PARSING
@@ -100,64 +100,105 @@ def ParseFile(path: Path, timeline: SD.Timeline):
         
         if parsemode == ParsingMode.PLAYBACK:
             t, a = ParsePlayback(line, line_id)
-            print(f"playback t: {t} | a: {a}")
+            #print(f"playback t: {t} | a: {a}")
             a = FnFormatParser(a, line_id, True)
-            a = ParseAction(a, line_id)
+            if a[0] == "nothing":
+                continue
+            a, params = Objectify(a, sequences_database)
+            #print(a)
             if a:
-                timeline.addAction(t, a)
+                if params: #If true we have a user defined sequence
+                    a = a.GetTimeline(params) # Generate the dict of timeline
+
+                timeline.addAction(t, a) # Add to timeline whatever we have
     
     #print(sequences_database)
+    #print("SEQUENCES============")
+    #print(sequences_database["s1"].actions_raw)
+    #print(sequences_database["s1"].GetTimeline(["20"]))
         
+def Objectify(line, user_defined_dict):
+    try: # Errors can occur if somehow the data structure is wrong
+        if type(line) == tuple: #We're processing a function declaration
+            decl = line[0].lower()
+            params = line[1] # Line can have a third parameter but we're omitting that
 
-    
-def ParseAction(adef, lineidx):
-    try:
-        main_func = adef[0].lower()
-        if main_func == "nothing":
-            return None
-        elif main_func in SD.BUILTIN_SEQUENCES: # Every class uses pretty much the same beginning syntax (except for user defined functions), that is class(selector color <somethingelsemaybe>)
-            selector = ParseSelector(adef[1][0])
-            color = ParseColor(adef[1][1], lineidx)
-            print(main_func)
-            print(selector)
-            print(color)
-            exit()
-    except:
-        raise RuntimeError(f"Invalid syntax at line {lineidx}!")
-
-def ParseSelector(selectorHeader):
-    selector = selectorHeader[0]
-    s_params = list(map(int, selectorHeader[1]))
-
-    selector = SD.SELECTORS[selector.lower()](s_params)
-    
-    return selector
-
-
-def ParseColor(colorHeader, lineidx):
-            #COLOR PROCESSING
-            color = colorHeader
-            color_type = color[0].lower()
-            color_params = color[1]
-            if color_type == "c":
-                red, green, blue = list(map(int, color_params))
-                color = SD.Color(red, green, blue)
-            elif color_type == "colorshift":
-                colorstart = color_params[0]
-                colorend = color_params[1]
-                time = color_params[2]
-                if colorstart[0].lower() != "c" or colorend[0].lower() != "c":
-                    raise RuntimeError(f"Invalid syntax at line {lineidx}, color definition inside ColorShift!")
-                
-                cs_c = list(map(int, colorstart[1]))
-                colorstart_class = SD.ColorData(cs_c[0], cs_c[1], cs_c[2])
-                cs_e = list(map(int, colorend[1]))
-                colorend_class = SD.ColorData(cs_e[0], cs_e[1], cs_e[2])
-                time = int(time)
-                color = SD.ColorShift(colorstart_class, colorend_class, time)
+            for i in range(len(params)):
+                parameter = params[i]
+                if type(parameter) == tuple: # Another function in this function
+                    tempobj, _ = Objectify(parameter) # Replace with a processed object
+                    if type(tempobj) == SD.UserDefinedSequence:
+                        raise RuntimeError(f"Userdefined Sequences cannot be put inside other functions! Line: {line}")
+                    params[i] = tempobj
             
-            return color
+            if not decl in SD.DECL_DICTIONARY.keys():
+                return None
+
+            # No more functions inside, process this one
+            if decl in SD.DECL_DICTIONARY.keys():
+                user_seq = False
+                decl_object = SD.DECL_DICTIONARY[decl]
+                param_types:list = decl_object.construction_types
+
+                process_tags = SD.Tags in param_types
+            elif decl in user_defined_dict.keys():
+                user_seq = True
+                process_tags = False
+                decl_object: SD.UserDefinedSequence = user_defined_dict[decl]
+                param_types = [None] * len(decl_object.ud_parameters) # This ensures the parameter amount checking still works correctly
+
+            if process_tags:
+                a_req_param = len(param_types) - 1
+            else:
+                a_req_param = len(param_types)
+            a_given_param = len(params)
+            
+            if (a_req_param < a_given_param and not process_tags) or a_req_param > a_given_param: # Second one is not enough parameters, first one is no tags accepted but something specified
+                
+                raise RuntimeError(f"Wrong number of parameters passed to {line}: {len(param_types)} | {len(params)} | {process_tags}")
+
+                
+            if param_types.count(SD.Tags) > 0 and (param_types.count(SD.Tags) > 1 or param_types[-1] != SD.Tags):
+                raise RuntimeError(f"Internal Error, class {decl} has wrongly defined construction_types (Tags)")
+            
+            parameters_to_pass = []
+            #print(params)
+
+            for i in range(a_req_param):
+                
+                temp = params[i]
+                if not user_seq: # If we're working with user defined sequences, we're not converting datatypes
+                    if not type(temp) == param_types[i] and not issubclass(type(temp), param_types[i]): # Also check if the type is not a child of the thing we want to convert, 
+                        temp = param_types[i](temp) #Convert type, at least try to                # because in that case it's pointless and problematic to do so
+                    
+                parameters_to_pass.append(temp)
+
+                if process_tags and i == a_req_param - 1: #Ensure we are at the end, last param
+                    tags = []
+                    #print("Processing tags!")
+                    if len(params) > a_req_param: # Ensure we actually have anything to be tagged
+                        for j in range(len(params) - len(param_types) + 1):
+                            tags.append(str(params[j+i + 1]))
+                    parameters_to_pass.append(tags)
+                #print(param_types[i])
+
+            #After all this shit, return the object with proper parameters
+            #print(f"Creating object {decl_object}")
+            #print(parameters_to_pass)
+            if not user_seq:
+                obj = decl_object(*parameters_to_pass)
+                parameters_to_pass = []
+
+            return obj, parameters_to_pass
+            
+
+                
+
+
+    except:
+        raise RuntimeError(f"Data structure {line} is invalid!")
         
+
 
 
 
@@ -269,7 +310,7 @@ def FnFormatParser(line_: str, lineidx, omit_end = False):
         return fn_name, params
         
 
-
-timeline = SD.Timeline(100)
-ParseFile(Path("presets/test.argbex"), timeline)
+if __name__ == "__main__":
+    timeline = SD.Timeline(100)
+    ParseFile(Path("presets/test.argbex"), timeline)
 

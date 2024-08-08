@@ -3,41 +3,10 @@ from enum import Enum
 
 MAX_LED = 300
 MAX_APS = 100
-BUILTIN_SEQUENCES = ["static"]
-class Sequence():
-    name = ""
-    parameters = []
-    actions = {}
-    act_ind = 0
+class ARGBEX_BASE():
+    construction_types = []
 
-    def __init__(self, decl: tuple[str, list[str]]):
-        self.name = decl[0]
-        self.parameters = decl[1]
-
-    def addActionLine(self, line):
-        self.actions[self.act_ind] = line
-        self.act_ind += 1
-
-
-class Action():
-    led_ids = []
-    colors = []
-
-    def __init__(self, leds: list, color: list):
-        if len(leds) != len(color):
-            raise RuntimeError(f"Error in object Action, LED: {str(leds)}, \n Color: {str(color)}")
-        
-        self.led_ids = leds
-        self.colors = color
-
-class Timeline():
-    min_step = 0 #Minimum step (time it takes between actions), defined by maximum actions per second
-    tmline: dict[int, str] = {}
-
-    def __init__(self, max_aps):
-        self.min_step = round(1/max_aps, 3) * 1000 #Adjust for miliseconds
-    
-    def snapNearest(self, value, less, more):
+def snapNearest(self, value, less, more):
         less_dist = value - less
         more_dist = more - value
         
@@ -46,21 +15,43 @@ class Timeline():
         elif less_dist > more_dist:
             return more_dist
 
-    def addAction(self, timestamp, action:  Action):
-        if timestamp % self.min_step == 0: # This action fits perfectly on the timestamp
-            tstmp = timestamp
-        else:
-            less = (timestamp // self.min_step) * self.min_step
-            more = less + self.min_step
-            tstmp = self.snapNearest(timestamp, less, more) # Snap to nearest timestamp
-        self.tmline[tstmp] = action
+def MergeTimelines(timeline_a, timeline_b, step = 0):
+    # We expect that timeline_a is properly fit into the step system
+    for key in timeline_b.keys():
+        val_copy = timeline_b[key]
+        key = int(key) # Ensure we're working with ints
 
-class OperandType(Enum):
-    SELECTOR = 1
+        if key % step != 0: #We need to snap to nearest
+            less = (key // step) * step
+            more = less + step
+            key = snapNearest(key, less, more) # Snap to nearest timestamp
+        
+        try:
+            led_setup: TimelineData = timeline_a[key]
+            # If this hasn't failed this means that something is already there, we need to merge by TimelineData, which happens in that class
+            led_setup.MergeWith(timeline_b[key]) #Merge the two TimelineDatas
+        except KeyError:
+            timeline_a[key] = val_copy
+    
+
+
+class Timeline():
+    min_step = 0 #Minimum step (time it takes between actions), defined by maximum actions per second
+    tmline: dict[int, str] = {}
+
+    def __init__(self, max_aps):
+        self.min_step = round(1/max_aps, 3) * 1000 #Adjust for miliseconds
+
+    def addAction(self, timestamp: int, action: dict):
+        unlocalized_action = {}
+        for key in action.keys():
+            unlocalized_action[int(key + timestamp)] = action[key] # Shift the actions to fit the timeline when we actually called it
+
+        MergeTimelines(self.tmline, unlocalized_action, self.min_step)
+
 
 # SELECTORS
-class Selector():
-    op_type = OperandType.SELECTOR
+class Selector(ARGBEX_BASE):
     selection = []
     valid = True
     s_name = ""
@@ -75,21 +66,22 @@ class Selector():
 
 class All(Selector):
     s_name = "All"
-    def __init__(self, *args):
+    def __init__(self):
         self.selection = list(range(1, MAX_LED + 1))
+
 
 class Checker(Selector):
     s_name = "Checker"
-    def __init__(self, *args):
-        if len(args) != 3:
-            self.valid = False
-            return None
-        start_from, led_selected, led_distance = args[0], args[1], args[2]
+    construction_types = [int, int, int]
+
+    def __init__(self, start_from, led_selected, led_distance):
+
         i = 0
         while(True):
+
             start = start_from + led_distance * i
             end = start_from + led_selected + led_distance * i
-            print(end)
+            #print(end)
             if start >= MAX_LED:
                 break
             if end >= MAX_LED:
@@ -101,11 +93,8 @@ class Checker(Selector):
 
 class ID(Selector):
     s_name = "ID"
-    def __init__(self, *args):
-        if len(args) != 1:
-            self.valid = False
-            return None
-        id_ = args[0]
+    construction_types = [int]
+    def __init__(self, id_):
         i = 0
         for _ in range(len(id_)):
             if id_[i] > MAX_LED:
@@ -117,30 +106,30 @@ class ID(Selector):
 
 class Range(Selector):
     s_name = "Range"
-    def __init__(self, *args):
-        if len(args) != 2:
-            self.valid = False
-            return None
-        
-        start, end = args[0], args[1]
+    construction_types = [int, int]
+    def __init__(self, start:int, end:int):
         if end > MAX_LED:
             end = MAX_LED
         self.selection = list(range(start, end+1))
-    
 
-class ColorData():
+
+#COLOR SPECIFIERS
+class ColorData(ARGBEX_BASE):
     red, green, blue = 0, 0, 0
+    construction_types = [int, int, int]
+
     def __init__(self, red: int, green: int, blue: int):
-        if red > 255:
-            self.red = 255
-        if green > 255:
-            self.green = green % 255
-        if blue > 255:
-            self.blue = blue % 255
-        
         self.red = red
         self.green = green
         self.blue = blue
+
+        if self.red > 255:
+            self.red = 255
+        if self.green > 255:
+            self.green = 255
+        if self.blue > 255:
+            self.blue = 255
+        
     
     def __str__(self):
         return self.__repr__()
@@ -149,10 +138,11 @@ class ColorData():
         return f"<R: {self.red}, G: {self.green}, B: {self.blue}>"
 
 class Color(ColorData):
-    timeframe = {} # Specifies what color happens at what time, used for color shifting, here it's static so it'll be timeframe[0] and only this
-
+    timeframe = {} # Specifies what color happens at what time, used for color shifting, here it's static so it'll be timeframe[0] and only thiss
     def ComputeTimeframe(self): #Overriden in ColorShift
-        self.timeframe[0] = self
+        t = TimelineData()
+        t.color = self
+        self.timeframe[0] = t
         return
 
     def GetTimeframe(self):
@@ -163,15 +153,16 @@ class Color(ColorData):
 class ColorShift(Color):
     colorStart: ColorData = None
     colorEnd: ColorData = None
+    time = None
     operations: int = None
     shiftTime: int = None
-
+    construction_types = [ColorData, ColorData, float] # We can also create it with Color, makes us able to use the same syntax as regular color definition, we're not doing anything with the object either way
     def __init__(self, colorStart: ColorData, colorEnd: ColorData, time):
         self.colorStart = colorStart
         self.colorEnd = colorEnd
         self.operations = time * MAX_APS  #This will give us how many operations do we need to perform
         self.shiftTime = 1000 / MAX_APS
-        print(f"Operations: {self.operations}")
+        #print(f"Operations: {self.operations}")
     
     def __repr__(self):
         return f"<ColorShift R: {self.colorStart.red} -> {self.colorEnd.red}, G: {self.colorStart.green} -> {self.colorEnd.green}, B: {self.colorStart.blue} -> {self.colorEnd.blue} | Time: {self.operations / MAX_APS}>"
@@ -186,7 +177,7 @@ class ColorShift(Color):
         step_green = (end_green - st_green) / self.operations
         step_blue = (end_blue - st_blue) / self.operations
 
-        print(f"Steps {step_red}, {step_green}, {step_blue}")
+        #print(f"Steps {step_red}, {step_green}, {step_blue}")
 
         t_red, t_green, t_blue = st_red, st_green, st_blue
 
@@ -223,30 +214,160 @@ class ColorShift(Color):
                 blue = end_blue
             
             last_time = list(self.timeframe.keys())[-1] # Keys represent the time (local time, it gets shifted when computed by other classes)
-            self.timeframe[last_time + self.shiftTime] = ColorData(red, green, blue)
+            
+            to_append = TimelineData()
+            to_append.color = ColorData(red, green, blue)
+            self.timeframe[last_time + self.shiftTime] = to_append
 
+class Tags(ARGBEX_BASE):
+    construction_types = [list]
+    tags = []
+    def __init__(self, tags: list[str]):
+        self.tags = [str(x).strip() for x in tags] #Ensure tags are in str, also strip
+
+
+class TimelineData():
+    selector: Selector = []
+    color: ColorData = None
+    
+    led_dict = {}
+
+    def GetDict(self):
+        if self.led_dict:
+            return self.led_dict
+
+        all_leds = self.selector.selection
+
+        for led in all_leds:
+            self.led_dict[led] = Color
+    
+    def MergeWith(self, tdata):
+        self.GetDict() # Just to be sure we have generated one
+
+        other_dict = tdata.GetDict()
+
+        ot_keys = list(other_dict.keys())
+        for key in ot_keys:
+            if int(key) in list(self.led_dict.keys()): #We have a duplicate
+                del other_dict[key] # We have priority (totally not egoistic behaviour)
+            else:
+                self.led_dict[key] = other_dict[key] # If that doesn't exist copy
+
+
+
+#ACTIONS
+class Action(ARGBEX_BASE): # Base class for every predefined action or user-defined sequences
+    selector: Selector = None
+    color: Color = None
+    tags = None
+
+    timeline = {}
+    construction_types = [Selector, Color, Tags]
+    act_name = ""
+
+    def __init__(self, selector, color, tags):
+        self.tags = tags
+        self.selector = selector
+        self.color = color
+
+
+    def GetTimeline(self):
+        if self.timeline:
+            return self.timeline
+        else:
+            self.timeline = self.ComputeTimeline()
+            return self.timeline
         
+    def __str__(self):
+        return self.__repr__()
+    
+    def __repr__(self):
+        return f"ACTION<{self.act_name} {self.selector} -> {self.color} , TAGS: {self.tags}>"
 
 
 # Static led change without any animations performed
-class Static():
-    selector = None
-    color = None
-
-
-    def __init__(self, selector, color, params: list):
+class Static(Action):
+    act_name = "STATIC"
+    def ComputeTimeline(self):
+        color_timeline = self.color.timeframe
+        #No movement timeline, this is static
+        for key in color_timeline.keys():
+            color_timeline[key].selector = self.selector #Now we're filling the TimelineData objects at every frame with our selection, again, this is static
         
-        selector = selector.lower()
-
-        if selector == "all":
-            self.selector = All()
+        for key in color_timeline.keys(): #Convert to simple dictionaries of {ledID : ColorData}
+            color_timeline[key] = color_timeline[key].GetDict()
         
-        elif selector == "checker":
-            self.selector = Checker(params[0], params[1], params[2])
-        
-        elif selector == "id":
-            self.selector = ID(params[0])
+        self.timeline = color_timeline
+        print("Timelinetest")
+        print(self.timeline)
 
+class UserDefinedSequence():
+    name = ""
+    ud_parameters = []
+    actions_raw: list = []
+
+
+    def __init__(self, name, parameters):
+        self.name = name
+        self.ud_parameters = [str(x) for x in parameters]
+
+    def addActionRaw(self, action: list):
+        self.actions_raw.append(action)
+
+    def ReplaceVarsInActionRaw(self, action, values): # action argument is mutable, but it may contain immutable tuples, which is a problem. We need to re-construct it from scratch :sob:
+        name, params = action # Unpack
+        #print(f"Replace {action}, {self.ud_parameters} -> {values}")
+        
+        for i in range(len(params)):
+
+            if type(params[i]) == tuple: # Function in function type scenario, similar to what happens in Objectify()
+                self.ReplaceVarsInActionRaw(params[i], values)
+            else:
+                for j in range(len(self.ud_parameters)):
+                    if params[i] == self.ud_parameters[j]:
+                        #print(f"Replacing {params[i]} with {values[j]}")
+                        params[i] = values[j] # Replace the var
+
+        return name, params
+
+    
+    def GetTimeline(self, parameters): # This is always computed at runtime, since we can use different variables
+        if len(parameters) != len(self.ud_parameters):
+            raise RuntimeError(f"Wrong amount of numbers passed {parameters}, {self.ud_parameters}")
+        
+        actions = self.actions_raw.copy() # Important that we don't touch the list in this class
+
+        from argbex_parser import Objectify as Obj
+
+        if len(self.ud_parameters):
+            for i in range(len(actions)):
+                actions[i] = self.ReplaceVarsInActionRaw(actions[i], parameters) #This will turn it into ready to process objects :) [hopefully, the bugs are killing me]
+
+        for i in range(len(actions)):
+                actions[i] = Obj(actions[i]) #This will turn it into ready to process objects :) [hopefully, the bugs are killing me]  
+        
+        #TODO: Process the objects and return a timeline, and this should be it!
+
+        return actions
+
+
+class Wait(ARGBEX_BASE):
+    construction_types = [float]
+    wait = 0
+    def __init__(self, time):
+        self.wait = time
+
+    def __str__(self):
+        return self.__repr__()
+    
+    def __repr__(self):
+        return f"ACTION<WAIT {self.wait}>"
+
+
+COLORS = {
+    "c": Color,
+    "colorshift": ColorShift,
+}
 
 SELECTORS = {
     "all": All,
@@ -255,6 +376,23 @@ SELECTORS = {
     "id": ID,
 
 }
+
+ACTIONS = {
+    "static": Static,
+    "wait": Wait,
+}
+
+
+# All in one dictionary
+DECL_DICTIONARY = {}
+for key in COLORS.keys():
+    DECL_DICTIONARY[key] = COLORS[key]
+
+for key in SELECTORS.keys():
+    DECL_DICTIONARY[key] = SELECTORS[key]
+
+for key in ACTIONS.keys():
+    DECL_DICTIONARY[key] = ACTIONS[key]
 
 #a = Color(2, 10, 0)
 #print(a.GetTimeframe()[0].green)
