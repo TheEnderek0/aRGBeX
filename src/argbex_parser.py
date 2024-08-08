@@ -4,6 +4,7 @@ import sequence_definitions as SD
 
 SEQUENCE_ALLOWED_CHARS = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890"
 
+
 class ParsingMode(Enum):
     NONE = 1
     SEQUENCES = 2
@@ -100,13 +101,64 @@ def ParseFile(path: Path, timeline: SD.Timeline):
         if parsemode == ParsingMode.PLAYBACK:
             t, a = ParsePlayback(line, line_id)
             print(f"playback t: {t} | a: {a}")
-            timeline.addAction(t, a)
+            a = FnFormatParser(a, line_id, True)
+            a = ParseAction(a, line_id)
+            if a:
+                timeline.addAction(t, a)
     
-    print(sequences_database)
+    #print(sequences_database)
         
 
     
+def ParseAction(adef, lineidx):
+    try:
+        main_func = adef[0].lower()
+        if main_func == "nothing":
+            return None
+        elif main_func in SD.BUILTIN_SEQUENCES: # Every class uses pretty much the same beginning syntax (except for user defined functions), that is class(selector color <somethingelsemaybe>)
+            selector = ParseSelector(adef[1][0])
+            color = ParseColor(adef[1][1], lineidx)
+            print(main_func)
+            print(selector)
+            print(color)
+            exit()
+    except:
+        raise RuntimeError(f"Invalid syntax at line {lineidx}!")
+
+def ParseSelector(selectorHeader):
+    selector = selectorHeader[0]
+    s_params = list(map(int, selectorHeader[1]))
+
+    selector = SD.SELECTORS[selector.lower()](s_params)
+    
+    return selector
+
+
+def ParseColor(colorHeader, lineidx):
+            #COLOR PROCESSING
+            color = colorHeader
+            color_type = color[0].lower()
+            color_params = color[1]
+            if color_type == "c":
+                red, green, blue = list(map(int, color_params))
+                color = SD.Color(red, green, blue)
+            elif color_type == "colorshift":
+                colorstart = color_params[0]
+                colorend = color_params[1]
+                time = color_params[2]
+                if colorstart[0].lower() != "c" or colorend[0].lower() != "c":
+                    raise RuntimeError(f"Invalid syntax at line {lineidx}, color definition inside ColorShift!")
+                
+                cs_c = list(map(int, colorstart[1]))
+                colorstart_class = SD.ColorData(cs_c[0], cs_c[1], cs_c[2])
+                cs_e = list(map(int, colorend[1]))
+                colorend_class = SD.ColorData(cs_e[0], cs_e[1], cs_e[2])
+                time = int(time)
+                color = SD.ColorShift(colorstart_class, colorend_class, time)
+            
+            return color
         
+
 
 
 
@@ -114,10 +166,13 @@ def ParsePlayback(line_: str, lineidx):
     line = line_.strip()
 
     res = line.split(" ")
-    if len(res) != 2:
+    if len(res) < 2:
         raise RuntimeError(f"Syntax error at line {lineidx}")
-    
-    timestamp, action = res
+    elif len(res) > 2:
+        timestamp = line[:len(res[0])]
+        action = line[len(res[0]) + 1:]
+    else:
+        timestamp, action = res
 
     t_res = timestamp.split(":")
     if len(t_res) != 3:
@@ -218,4 +273,3 @@ def FnFormatParser(line_: str, lineidx, omit_end = False):
 timeline = SD.Timeline(100)
 ParseFile(Path("presets/test.argbex"), timeline)
 
-print()
