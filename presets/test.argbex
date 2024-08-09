@@ -1,9 +1,9 @@
 <Sequences>
 
 s1(sometime) {                                   // Sequences are like functions that can be invoked in the Playback section
-    static(all() c(255 255 255)) 
-    wait(sometime)
-    static(all() c(255 0 255))
+    Static(All() Color(255 255 255)) 
+    Wait(sometime)
+    Static(All() Color(255 0 255))
 }
 
 //s2(param1) {                             // They can have parameters like functions!
@@ -28,5 +28,7 @@ s1(sometime) {                                   // Sequences are like functions
 
 <Playback>
 00:00:00 nothing()
-00:00:50 s1()
-00:00:80 static(all() colorshift(     c(255 255 255)      c(0 255 0)      2    ) Hi from tags!)
+//00:00:50 s1()
+00:00:80 Static(All() ColorShift(     Color(255 255 255)      Color(0 255 0)      1    ) Hi from tags!)
+00:01:80 Static(All() Color(69 69 69))
+00:01:90 Static(All() Color(69 69 69))

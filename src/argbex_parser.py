@@ -60,7 +60,7 @@ def ParseFile(path: Path, timeline: SD.Timeline):
             name, params, end = FnFormatParser(line, line_id)
             #print(f"{name}, {str(params)}, {end}")
             current_sequence = name
-            sequences_database[name] = SD.UserDefinedSequence(name, params)
+            sequences_database[name] = SD.UserDefinedSequence(name, params, sequences_database)
 
             if "{" in end:
                 parsemode = ParsingMode.SEQ_FN
@@ -110,37 +110,40 @@ def ParseFile(path: Path, timeline: SD.Timeline):
                 if params: #If true we have a user defined sequence
                     a = a.GetTimeline(params) # Generate the dict of timeline
 
-                timeline.addAction(t, a) # Add to timeline whatever we have
+                timeline.addAction(t, a.GetTimeline()) # Add to timeline whatever we have
     
     #print(sequences_database)
     #print("SEQUENCES============")
     #print(sequences_database["s1"].actions_raw)
     #print(sequences_database["s1"].GetTimeline(["20"]))
+
+    return timeline
         
 def Objectify(line, user_defined_dict):
     try: # Errors can occur if somehow the data structure is wrong
         if type(line) == tuple: #We're processing a function declaration
-            decl = line[0].lower()
+            decl = line[0]
             params = line[1] # Line can have a third parameter but we're omitting that
 
             for i in range(len(params)):
                 parameter = params[i]
                 if type(parameter) == tuple: # Another function in this function
-                    tempobj, _ = Objectify(parameter) # Replace with a processed object
+                    tempobj, _ = Objectify(parameter, user_defined_dict) # Replace with a processed object
                     if type(tempobj) == SD.UserDefinedSequence:
                         raise RuntimeError(f"Userdefined Sequences cannot be put inside other functions! Line: {line}")
                     params[i] = tempobj
             
-            if not decl in SD.DECL_DICTIONARY.keys():
+            if not decl in SD.getglobals().keys():
+                print(f"Decl {decl} not found!")
                 return None
 
             # No more functions inside, process this one
-            if decl in SD.DECL_DICTIONARY.keys():
+            if decl in SD.getglobals().keys():
                 user_seq = False
-                decl_object = SD.DECL_DICTIONARY[decl]
+                decl_object = getattr(SD, decl)
                 param_types:list = decl_object.construction_types
 
-                process_tags = SD.Tags in param_types
+                process_tags = "Tags" in param_types
             elif decl in user_defined_dict.keys():
                 user_seq = True
                 process_tags = False
@@ -168,8 +171,8 @@ def Objectify(line, user_defined_dict):
                 
                 temp = params[i]
                 if not user_seq: # If we're working with user defined sequences, we're not converting datatypes
-                    if not type(temp) == param_types[i] and not issubclass(type(temp), param_types[i]): # Also check if the type is not a child of the thing we want to convert, 
-                        temp = param_types[i](temp) #Convert type, at least try to                # because in that case it's pointless and problematic to do so
+                    if not type(temp) == param_types[i] and not issubclass(type(temp), getattr(SD, param_types[i])): # Also check if the type is not a child of the thing we want to convert, 
+                        temp = getattr(SD, param_types[i])(temp) #Convert type, at least try to                # because in that case it's pointless and problematic to do so
                     
                 parameters_to_pass.append(temp)
 
@@ -313,4 +316,7 @@ def FnFormatParser(line_: str, lineidx, omit_end = False):
 if __name__ == "__main__":
     timeline = SD.Timeline(100)
     ParseFile(Path("presets/test.argbex"), timeline)
+    #print(timeline.tmline)
+    for keyval in timeline.GetFullTimeline().items():
+        print(keyval)
 
