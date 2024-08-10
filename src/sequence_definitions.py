@@ -6,7 +6,7 @@ MAX_APS = 100
 class ARGBEX_BASE():
     construction_types = []
 
-def snapNearest(self, value, less, more):
+def snapNearest(value, less, more):
         less_dist = value - less
         more_dist = more - value
         
