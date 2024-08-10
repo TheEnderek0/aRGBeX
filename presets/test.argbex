@@ -4,18 +4,14 @@ s1(sometime) {                                   // Sequences are like functions
     Static(All() Color(255 255 255)) 
     Wait(sometime)
     Static(All() Color(255 0 255))
+    s2(3)
 }
 
-//s2(param1) {                             // They can have parameters like functions!
-//    static(all() c(255 255 255))
-//    //loop(param1 until force) {                // This is a loop that loops the code below until the playback reaches param1 time.
-//    //    static(checker(0 2 2) c(0 255 0))     // Added force keyword means that nothing will be executed after param1 the function will stop there
-//    //    wait(0.2)
-//    //    static(checker(2 2 2) c(255 0 0))
-//    //    wait(0.2)
-//    //    static(all() c(255 255 255))
-//    //}
-//}
+s2(param1) {                             // They can have parameters like functions!
+    Wait(param1)
+    Static(All() Color(255 255 0))
+    
+}
     
 //s3(param) {
 //    loop(for param) {
@@ -28,7 +24,7 @@ s1(sometime) {                                   // Sequences are like functions
 
 <Playback>
 00:00:00 nothing()
-//00:00:50 s1()
+00:00:50 s1(2)
 00:00:80 Static(All() ColorShift(     Color(255 255 255)      Color(0 255 0)      1    ) Hi from tags!)
 00:01:80 Static(All() Color(69 69 69))
 00:01:90 Static(All() Color(69 69 69))

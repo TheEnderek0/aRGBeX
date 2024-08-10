@@ -15,7 +15,7 @@ def snapNearest(value, less, more):
         elif less_dist > more_dist:
             return more_dist
 
-def MergeTimelines(timeline_a, timeline_b, step = 0):
+def MergeTimelines(timeline_a, timeline_b, step = int(1000 / MAX_APS)):
     # We expect that timeline_a is properly fit into the step system
     for key in timeline_b.keys():
         val_copy = timeline_b[key]
@@ -45,7 +45,7 @@ class Timeline():
         self.tmline = {}
 
     def addAction(self, timestamp: int, action: dict):
-        #print(f"Adding {action}")
+        print(f"Adding {action.keys()}")
         unlocalized_action = {}
         for key in action.keys():
             unlocalized_action[int(key + timestamp)] = action[key] # Shift the actions to fit the timeline when we actually called it
@@ -57,6 +57,8 @@ class Timeline():
 
         for key in timeline_copy.keys():
             timeline_copy[key] = timeline_copy[key].GetDict()
+        
+        timeline_copy = dict(sorted(timeline_copy.items())) #Sort the list by keys
         
         return timeline_copy
 
@@ -152,10 +154,9 @@ class ColorData(ARGBEX_BASE):
         return f"<R: {self.red}, G: {self.green}, B: {self.blue}>"
 
 class Color(ColorData):
-    timeframe = {} # Specifies what color happens at what time, used for color shifting, here it's static so it'll be timeframe[0] and only thiss
-    
+ 
     def __init__(self, red, green, blue):
-        timeframe = {}
+        self.timeframe = {} # Specifies what color happens at what time, used for color shifting, here it's static so it'll be timeframe[0] and only thiss
         self.red = red
         self.green = green
         self.blue = blue
@@ -291,10 +292,12 @@ class TimelineData():
 
         ot_keys = list(other_dict.keys())
         for key in ot_keys:
-            if int(key) in list(self.led_dict.keys()): #We have a duplicate
-                del other_dict[key] # We have priority (totally not egoistic behaviour)
-            else:
-                self.led_dict[key] = other_dict[key] # If that doesn't exist copy
+            #if int(key) in list(self.led_dict.keys()): #We have a duplicate
+            #    self.led_dict[key] = other_dict[key] # We have priority (totally not egoistic behaviour)
+            #else:
+            
+            #After consideration this code was scrapped and the priority was reversed, later defined actions override the ones in the background
+            self.led_dict[key] = other_dict[key] # If that doesn't exist copy
     
     def __repr__(self):
         return f"<TD [{self.selector}] -> [{self.color}]>"
@@ -372,10 +375,16 @@ class UserDefinedSequence():
     def addActionRaw(self, action: list):
         self.actions_raw.append(action)
 
-    def ReplaceVarsInActionRaw(self, action, values): # action argument is mutable, but it may contain immutable tuples, which is a problem. We need to re-construct it from scratch :sob:
+    def ReplaceVarsInActionRaw(self, action, values, previous_uds: set[str] = set()): # action argument is mutable, but it may contain immutable tuples, which is a problem. We need to re-construct it from scratch :sob:
         name, params = action # Unpack
         #print(f"Replace {action}, {self.ud_parameters} -> {values}")
-        
+        #TODO: Fix this!!!!
+        previous_uds |= set((name)) # Have to make it a tuple so the set() doesn't split it into separate letters
+        #Dissallow self-reference
+        if name in previous_uds:
+            raise RuntimeError(f"Self reference inside of user defined sequences is not allowed! Sequence {self.name}")
+        #This is because there's no actual way for us to exit this recursing loop, sequences are basic pre-defined actions, they don't have any real logic like variables inside
+
         for i in range(len(params)):
 
             if type(params[i]) == tuple: # Function in function type scenario, similar to what happens in Objectify()
@@ -389,7 +398,7 @@ class UserDefinedSequence():
         return name, params
 
     
-    def GetTimeline(self, parameters): # This is always computed at runtime, since we can use different variables
+    def GetTimeline(self, parameters, previous_uds: set[str] = set()): # This is always computed at runtime, since we can use different variables
         if len(parameters) != len(self.ud_parameters):
             raise RuntimeError(f"Wrong amount of numbers passed {parameters}, {self.ud_parameters}")
         
@@ -399,27 +408,57 @@ class UserDefinedSequence():
 
         if len(self.ud_parameters):
             for i in range(len(actions)):
-                actions[i] = self.ReplaceVarsInActionRaw(actions[i], parameters) #This will turn it into ready to process objects :) [hopefully, the bugs are killing me]
+                actions[i] = self.ReplaceVarsInActionRaw(actions[i], parameters, previous_uds)
 
         for i in range(len(actions)):
-                actions[i] = Obj(actions[i], self.all_sequence_definitions) #This will turn it into ready to process objects :) [hopefully, the bugs are killing me]  
+                actions[i], inside_params = Obj(actions[i], self.all_sequence_definitions) #This will turn it into ready to process objects :) [hopefully, the bugs are killing me]  
         
-        #TODO: Process the objects and return a timeline, and this should be it!
+        timeline_final = None
+        time_offset = 0
+        for i in range(len(actions)):
+            print(f'{self.name} = {time_offset}')
+            if type(actions[i]) == Wait: # Handle specially
+                time_offset += int(actions[i].wait) # Add offset and skip element
+                continue
+            
+            if type(actions[i]) == UserDefinedSequence:
+                this_timeline = actions[i].GetTimeline(inside_params, previous_uds) # Convert sequences to timelines
+            else:
+                this_timeline = actions[i].GetTimeline()
 
-        return actions
+            print(this_timeline.keys())
+
+
+
+            if time_offset: #Minor optimization, don't do this if offset == 0
+                this_timeline_keys = list(this_timeline.keys())
+                for key in this_timeline_keys:
+                    temp_tmline = this_timeline[key] # Store the led data
+                    del this_timeline[key] # Delete old
+                    this_timeline[int(key + time_offset)] = temp_tmline
+
+
+            if not timeline_final: #First timeline will be the base one
+                timeline_final = this_timeline.copy() #Appearently python stores some shit as reference here and when the second last line of code in the loop above
+                continue                              # gets called it also deletes the same key from timeline_final. Fuck you python
+
+            MergeTimelines(timeline_final, this_timeline)
+            
+        print(timeline_final)
+        return timeline_final
 
 
 class Wait(ARGBEX_BASE):
     construction_types = ["float"]
     wait = 0
     def __init__(self, time):
-        self.wait = time
+        self.wait = time * 1000 #Adjust for miliseconds
 
     def __str__(self):
         return self.__repr__()
     
     def __repr__(self):
-        return f"ACTION<WAIT {self.wait}>"
+        return f"ACTION<WAIT {self.wait} ms>"
 
 
 def getglobals():

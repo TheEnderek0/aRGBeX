@@ -109,8 +109,14 @@ def ParseFile(path: Path, timeline: SD.Timeline):
             if a:
                 if params: #If true we have a user defined sequence
                     a = a.GetTimeline(params) # Generate the dict of timeline
+                    print(f"Finished computing for func ")
+                    print(a.keys())
+                else:
+                    a = a.GetTimeline()
+                
+                
 
-                timeline.addAction(t, a.GetTimeline()) # Add to timeline whatever we have
+                timeline.addAction(t, a) # Add to timeline whatever we have
     
     #print(sequences_database)
     #print("SEQUENCES============")
@@ -132,10 +138,6 @@ def Objectify(line, user_defined_dict):
                     if type(tempobj) == SD.UserDefinedSequence:
                         raise RuntimeError(f"Userdefined Sequences cannot be put inside other functions! Line: {line}")
                     params[i] = tempobj
-            
-            if not decl in SD.getglobals().keys():
-                print(f"Decl {decl} not found!")
-                return None
 
             # No more functions inside, process this one
             if decl in SD.getglobals().keys():
@@ -149,6 +151,8 @@ def Objectify(line, user_defined_dict):
                 process_tags = False
                 decl_object: SD.UserDefinedSequence = user_defined_dict[decl]
                 param_types = [None] * len(decl_object.ud_parameters) # This ensures the parameter amount checking still works correctly
+            else:
+                raise RuntimeError(f"Decl {decl} not found!")
 
             if process_tags:
                 a_req_param = len(param_types) - 1
@@ -191,6 +195,8 @@ def Objectify(line, user_defined_dict):
             if not user_seq:
                 obj = decl_object(*parameters_to_pass)
                 parameters_to_pass = []
+            else:
+                obj = decl_object
 
             return obj, parameters_to_pass
             
@@ -317,6 +323,7 @@ if __name__ == "__main__":
     timeline = SD.Timeline(100)
     ParseFile(Path("presets/test.argbex"), timeline)
     #print(timeline.tmline)
-    for keyval in timeline.GetFullTimeline().items():
-        print(keyval)
+    print(timeline.GetFullTimeline().keys())
+    #for keyval in timeline.GetFullTimeline().items():
+    #    print(keyval)
 
