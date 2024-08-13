@@ -1,8 +1,6 @@
 #Stores definitions and internal code of classes representing sequences
-from enum import Enum
-from dataclasses import dataclass
-MAX_LED = 300
-MAX_APS = 100
+from globals_def import MAX_APS, LIGHTSTRIP_SIZE
+
 class ARGBEX_BASE():
     construction_types = []
 
@@ -43,9 +41,10 @@ class Timeline():
     def __init__(self, max_aps):
         self.min_step = round(1/max_aps, 3) * 1000 #Adjust for miliseconds
         self.tmline = {}
+        self.name = ""
 
     def addAction(self, timestamp: int, action: dict):
-        print(f"Adding {action.keys()}")
+        #print(f"Adding {action.keys()}")
         unlocalized_action = {}
         for key in action.keys():
             unlocalized_action[int(key + timestamp)] = action[key] # Shift the actions to fit the timeline when we actually called it
@@ -75,11 +74,10 @@ class Selector(ARGBEX_BASE):
         return f"SELECTOR<{self.s_name}>"
 
 
-
 class All(Selector):
     s_name = "All"
     def __init__(self):
-        self.selection = list(range(1, MAX_LED + 1))
+        self.selection = list(range(1, LIGHTSTRIP_SIZE + 1))
 
 
 class Checker(Selector):
@@ -94,14 +92,14 @@ class Checker(Selector):
             start = start_from + led_distance * i
             end = start_from + led_selected + led_distance * i
             #print(end)
-            if start >= MAX_LED:
+            if start >= LIGHTSTRIP_SIZE:
                 break
-            if end >= MAX_LED:
-                end = MAX_LED
+            if end >= LIGHTSTRIP_SIZE:
+                end = LIGHTSTRIP_SIZE
                 break
-            self.selection.extend(list(range(start,  end)))
+            self.selection.extend(list(range(start + 1,  end + 1)))
             i += 1
-            start_from = end
+            start_from += led_selected
 
 class ID(Selector):
     s_name = "ID"
@@ -110,7 +108,7 @@ class ID(Selector):
         self.selection = []
         i = 0
         for _ in range(len(id_)):
-            if id_[i] > MAX_LED:
+            if id_[i] > LIGHTSTRIP_SIZE:
                 del id_[i]
             else:
                 i += 1
@@ -122,8 +120,8 @@ class Range(Selector):
     construction_types = ["int", "int"]
     def __init__(self, start:int, end:int):
         self.selection = []
-        if end > MAX_LED:
-            end = MAX_LED
+        if end > LIGHTSTRIP_SIZE:
+            end = LIGHTSTRIP_SIZE
         self.selection = list(range(start, end+1))
 
 
@@ -168,12 +166,12 @@ class Color(ColorData):
         t = TimelineData()
         t.color = self
         self.timeframe[0] = t
-        return
+        return  
 
     def GetTimeframe(self):
         if not self.timeframe:
             self.ComputeTimeframe()
-        return self.timeframe
+        return self.timeframe.copy() #Return a copy to dissallow modification
 
 class ColorShift(Color):
     colorStart: ColorData = None
@@ -271,7 +269,7 @@ class TimelineData():
         #print(f'Getting dict for {self.selector} : {self.color}')
         if not self.led_dict:
             self.ComputeDict()
-        return self.led_dict
+        return self.led_dict.copy() #Dissallow modification
 
     
     def ComputeDict(self):
@@ -280,7 +278,7 @@ class TimelineData():
 
         temp_dict = {}
         for led in all_leds:
-            temp_dict[led] = self.color
+            temp_dict[led] = (self.color.red, self.color.green, self.color.blue) # Make a tuple, saves us a hassle later on, we don't need the additional color wrapper after this function
         
         self.led_dict = temp_dict
             
@@ -326,12 +324,12 @@ class Action(ARGBEX_BASE): # Base class for every predefined action or user-defi
 
     def GetTimeline(self):
         if self.timeline:
-            return self.timeline
+            return self.timeline.copy()
         else:
-            print(f"Computing timeline for {self}")
+            #print(f"Computing timeline for {self}")
             self.ComputeTimeline()
             #print(self.timeline)
-            return self.timeline
+            return self.timeline.copy()
         
     def __str__(self):
         return self.__repr__()
@@ -359,12 +357,103 @@ class Static(Action):
         #print("Timelinetest")
         #print(self.timeline)
 
-class UserDefinedSequence():
-    name = ""
-    ud_parameters = None
-    actions_raw: list = None
-    all_sequence_definitions: dict = None
+class Slide(Action):
+    act_name = "SLIDE"
+    construction_types = ["Selector", "Color", "float", "Tags"]
 
+    def __init__(self, selector, color, time, tags):
+        self.tags = tags
+        self.selector = selector
+        self.color = color
+        self.timeline = {}
+        self.time = time
+
+        #Enums
+        self.single = 0
+        self.multi = 1
+
+
+    def ComputeTimeline(self):
+        color_timeline: dict[int, TimelineData] = self.color.GetTimeframe()
+
+        mode = -1 #Unset
+
+        if "Single" in self.tags:
+            mode = self.single
+        
+        if "Multi" in self.tags:
+            if mode != -1:
+                raise RuntimeError("Only Multi *or* Single tags can be specified at once!")
+            else:
+                mode = self.multi
+        
+        if mode == self.single:
+
+            selection_leds = len(self.selector.selection)
+
+            operations = int(self.time * MAX_APS)  #This will give us how many operations do we need to perform
+            shiftTime = 1000 / MAX_APS
+            leds_per_step = selection_leds / operations
+            old_timeline_keys = list(color_timeline.keys())
+            old_color = None
+
+            selection:list = self.selector.selection.copy()
+
+            if "Reversed" in self.tags:
+                selection.reverse()
+
+            selector = None
+
+            last_ind = 0
+            for step in range(operations + 1):
+                timekey = int(round(step * shiftTime))
+                if timekey == 0 and timekey not in old_timeline_keys:
+                    raise RuntimeError("Internal error in Slideaction, timekey = 0 but  no key found!")
+                
+                if timekey in old_timeline_keys: # If we have a color on that timeframe we can copy it to be compatible with ColorShift
+                    old_color = color_timeline[timekey].color
+                
+                selected_leds = int(round(leds_per_step * step))
+                
+                selector = Selector()
+                selector.selection = selection[0:selected_leds + 1]
+
+                color_timeline[timekey] = TimelineData(old_color, selector)
+
+                loop_until = 0
+                for tmframe in old_timeline_keys:
+                    if tmframe < timekey:
+                        loop_until = old_timeline_keys.index(tmframe)
+                        break
+                
+                for j in range(last_ind, loop_until): # Append this selector to frames that happened between our animation frames
+                    k = old_timeline_keys[j]
+                    if color_timeline[k].selector == None:
+                        color_timeline[k].selector = selector
+
+                
+                last_ind = loop_until
+            
+            # Append last selector to remaining frames
+            loop_from = 0
+            for tmframe in old_timeline_keys:
+                    if tmframe == timekey: # Timekey is last timekey, when we exited the loop
+                        loop_from = old_timeline_keys.index(tmframe)
+            
+            for key in old_timeline_keys[loop_from + 1:]:
+                if color_timeline[key].selector == None:
+                    color_timeline[key].selector = selector 
+
+
+
+
+
+            self.timeline = color_timeline
+
+
+
+
+class UserDefinedSequence():
 
     def __init__(self, name, parameters, sequences):
         self.name = name
@@ -378,8 +467,7 @@ class UserDefinedSequence():
     def ReplaceVarsInActionRaw(self, action, values, previous_uds: set[str] = set()): # action argument is mutable, but it may contain immutable tuples, which is a problem. We need to re-construct it from scratch :sob:
         name, params = action # Unpack
         #print(f"Replace {action}, {self.ud_parameters} -> {values}")
-        #TODO: Fix this!!!!
-        previous_uds |= set((name)) # Have to make it a tuple so the set() doesn't split it into separate letters
+        previous_uds |= set([self.name]) # Have to make it a list so the set() doesn't split it into separate letters
         #Dissallow self-reference
         if name in previous_uds:
             raise RuntimeError(f"Self reference inside of user defined sequences is not allowed! Sequence {self.name}")
@@ -406,36 +494,40 @@ class UserDefinedSequence():
 
         from argbex_parser import Objectify as Obj
 
-        if len(self.ud_parameters):
-            for i in range(len(actions)):
-                actions[i] = self.ReplaceVarsInActionRaw(actions[i], parameters, previous_uds)
+        #if len(self.ud_parameters): # Unfortunately we have to check for parameters every time, since that function also checks for self-references and looping references
+        for i in range(len(actions)):
+            actions[i] = self.ReplaceVarsInActionRaw(actions[i], parameters, previous_uds)
 
         for i in range(len(actions)):
                 actions[i], inside_params = Obj(actions[i], self.all_sequence_definitions) #This will turn it into ready to process objects :) [hopefully, the bugs are killing me]  
         
         timeline_final = None
         time_offset = 0
+        this_timeline = None
         for i in range(len(actions)):
-            print(f'{self.name} = {time_offset}')
+            #print(f'{self.name} = {time_offset}')
             if type(actions[i]) == Wait: # Handle specially
                 time_offset += int(actions[i].wait) # Add offset and skip element
                 continue
             
             if type(actions[i]) == UserDefinedSequence:
-                this_timeline = actions[i].GetTimeline(inside_params, previous_uds) # Convert sequences to timelines
+                this_timeline = actions[i]
+                this_timeline = this_timeline.GetTimeline(inside_params, previous_uds).copy() # Convert sequences to timelines
             else:
-                this_timeline = actions[i].GetTimeline()
+                this_timeline = actions[i].GetTimeline().copy()
 
-            print(this_timeline.keys())
+            #print(this_timeline.keys())
 
 
-
+            
             if time_offset: #Minor optimization, don't do this if offset == 0
                 this_timeline_keys = list(this_timeline.keys())
+                timeline_copy = {}
                 for key in this_timeline_keys:
                     temp_tmline = this_timeline[key] # Store the led data
-                    del this_timeline[key] # Delete old
-                    this_timeline[int(key + time_offset)] = temp_tmline
+                    timeline_copy[int(key + time_offset)] = temp_tmline
+                
+                this_timeline = timeline_copy
 
 
             if not timeline_final: #First timeline will be the base one
@@ -444,7 +536,7 @@ class UserDefinedSequence():
 
             MergeTimelines(timeline_final, this_timeline)
             
-        print(timeline_final)
+        #print(timeline_final)
         return timeline_final
 
 

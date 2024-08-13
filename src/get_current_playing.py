@@ -3,7 +3,7 @@
 
 import asyncio
 import time
-from winsdk.windows.media.control import \
+from winrt.windows.media.control import \
     GlobalSystemMediaTransportControlsSessionManager as MediaManager
 
 
@@ -25,7 +25,12 @@ async def get_media_info():
             info = await current_session.try_get_media_properties_async()
 
             # song_attr[0] != '_' ignores system attributes
-            info_dict = {song_attr: info.__getattribute__(song_attr) for song_attr in dir(info) if song_attr[0] != '_'}
+            info_dict = {
+                "artist": info.artist,
+                "title": info.title,
+                "genres": info.genres,
+                "subtitle": info.subtitle
+            }
 
             # converts winrt vector to list
             info_dict['genres'] = list(info_dict['genres'])
@@ -42,3 +47,7 @@ async def get_media_info():
 def GetCurrentlyPlaying():
     info = asyncio.run(get_media_info())
     return {"author":info["artist"], "title":info["title"]}
+
+
+if __name__ == "__main__":
+    print(GetCurrentlyPlaying())

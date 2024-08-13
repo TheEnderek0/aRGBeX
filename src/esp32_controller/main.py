@@ -7,6 +7,7 @@ from select import select
 import esp_cfg as V
 from machine import Pin
 import neopixel
+from micropython import mem_info
 
 OUTPUT_PIN = 27
 LIGHTSTRIP_SIZE = 300
@@ -37,25 +38,15 @@ def RunClient():
         if ready_sockets:
             data = s.recv(3 * LIGHTSTRIP_SIZE) # 3 bytes of color for each of lightstrip_size leds
             data = unpack("BBB" * LIGHTSTRIP_SIZE, data)
+            for i in range(300):
+                np[i] = (data[i], data[i + LIGHTSTRIP_SIZE], data[i + 2 * LIGHTSTRIP_SIZE])
+            np.write()
+            #mem_info()
             print(f"Received data, latency {(time_ns() - t_start) / 1000000}")
-            WriteToPixels(data)
         else:
             print('No data')
 
         #sleep_ms(9) #Honestly run as fast as you can
-
-def WriteToPixels(data):
-    try:
-        for i in range(300):
-            red = data[i]
-            green = data[i + LIGHTSTRIP_SIZE]
-            blue = data[i + LIGHTSTRIP_SIZE * 2]
-            np[i] = (red, green, blue)
-
-        np.write()
-    except:
-        print("Something broke in write to pixels!")
-    
 
 RunClient()
 

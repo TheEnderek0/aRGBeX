@@ -2,7 +2,7 @@ from pathlib import Path
 from enum import Enum
 import sequence_definitions as SD
 
-SEQUENCE_ALLOWED_CHARS = "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890"
+from globals_def import SEQUENCE_ALLOWED_CHARS
 
 
 class ParsingMode(Enum):
@@ -22,6 +22,8 @@ def ParseFile(path: Path, timeline: SD.Timeline):
     current_sequence = None
     sequences_database = {}
 
+    name = lines.pop(0) # First line is the name/id
+    timeline.name = name.strip().lower()
     
 
     line_id = -1
@@ -107,10 +109,10 @@ def ParseFile(path: Path, timeline: SD.Timeline):
             a, params = Objectify(a, sequences_database)
             #print(a)
             if a:
-                if params: #If true we have a user defined sequence
+                if type(a) == SD.UserDefinedSequence: #If true we have a user defined sequence
                     a = a.GetTimeline(params) # Generate the dict of timeline
-                    print(f"Finished computing for func ")
-                    print(a.keys())
+                    #print(f"Finished computing for func ")
+                    #print(a.keys())
                 else:
                     a = a.GetTimeline()
                 
@@ -324,6 +326,6 @@ if __name__ == "__main__":
     ParseFile(Path("presets/test.argbex"), timeline)
     #print(timeline.tmline)
     print(timeline.GetFullTimeline().keys())
-    #for keyval in timeline.GetFullTimeline().items():
-    #    print(keyval)
+    for keyval in timeline.GetFullTimeline().items():
+        print(keyval)
 

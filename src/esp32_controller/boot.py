@@ -2,8 +2,11 @@ import network
 import webrepl
 from time import sleep
 import esp_cfg as V
+from machine import freq
 
 wifi = (V.WIFI_SSID, V.WIFI_PASSWORD)
+
+freq(240000000) # Run at 240MHz, fastest you can go
 
 wlan = network.WLAN(network.STA_IF)
 wlan.active(True)
