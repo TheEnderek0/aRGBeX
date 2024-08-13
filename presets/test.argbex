@@ -1,17 +1,19 @@
+test
+
 <Sequences>
 
-s1(sometime) {                                   // Sequences are like functions that can be invoked in the Playback section
-    Static(All() Color(255 255 255)) 
-    Wait(sometime)
-    Static(All() Color(255 0 255))
-    s2(3)
-}
-
-s2(param1) {                             // They can have parameters like functions!
-    Wait(param1)
-    Static(All() Color(255 255 0))
-    
-}
+//s1(sometime) {                                   // Sequences are like functions that can be invoked in the Playback section
+//    Static(All() Color(255 255 255)) 
+//    Wait(sometime)
+//    Static(All() Color(255 0 255))
+//    s2(3)
+//}
+//
+//s2(param1) {                             // They can have parameters like functions!
+//    Wait(param1)
+//    Static(All() Color(255 255 0))
+//    
+//}
     
 //s3(param) {
 //    loop(for param) {
@@ -23,8 +25,9 @@ s2(param1) {                             // They can have parameters like functi
 
 
 <Playback>
-00:00:00 nothing()
-00:00:50 s1(2)
-00:00:80 Static(All() ColorShift(     Color(255 255 255)      Color(0 255 0)      1    ) Hi from tags!)
-00:01:80 Static(All() Color(69 69 69))
-00:01:90 Static(All() Color(69 69 69))
+00:00:00 Static(All() Color(25 25 25))
+00:01:00 Slide(Checker(0 10 10) ColorShift(Color(255 255 255) Color(0 255 0) 3) 2 Single Reversed)
+//00:00:50 s1(2)
+//00:05:80 Static(All() ColorShift(     Color(255 255 255)      Color(0 255 0)      3    ) Hi from tags!)
+//00:08:80 Static(All() Color(69 69 69))
+//00:010:90 Static(All() Color(255 255 255))
