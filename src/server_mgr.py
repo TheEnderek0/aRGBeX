@@ -148,6 +148,8 @@ class ServerManager(T.Thread):
                 latency *= 1000
                 latency -= GLOBAL_LATENCY
 
+                if latency < 0: #This means we were really fast. This can happen because of GLOBAL_LATENCY, which is there for the latency in the code as the whole, and the esp32 communication.
+                    latency = 0
                 
                 #keys = list(self.cur_song_playback_keys)
                 sleep_time = 0

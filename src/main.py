@@ -85,6 +85,7 @@ def RunServer(database, file_id:str = None):
     if file_id:
         songdata.SetSong(file_id.lower())
         song_changed_event.set() # Register to notify the program that we've set a song/id to play
+        songdata.latency = time()
     
     song_lock = Lock()
 
