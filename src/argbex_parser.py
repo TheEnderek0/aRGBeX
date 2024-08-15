@@ -50,6 +50,10 @@ def ParseFile(path: Path, timeline: SD.Timeline):
             continue
 
         if line.lower() == "<playback>":
+            a = FnFormatParser("Static(All() Color(0 0 0))", -1, True) # We have to have one starting line at index 0 of the timeline
+            a = Objectify(a, sequences_database)[0]
+            a = a.GetTimeline()
+            timeline.addAction(0, a) # It's gonna get overriden if needed
             parsemode = ParsingMode.PLAYBACK
             continue
         

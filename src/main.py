@@ -225,7 +225,7 @@ def SaveAnim(structure, filepath: Path):
             file.write(artist.encode())
 
         for keyval in songdata.items():
-            file.write(bytearray(pack("<I", keyval[0]))) # This is the timestamp
+            file.write(bytearray(pack("<I", int(keyval[0])))) # This is the timestamp
             file.write(bytearray(pack("<" + str(LIGHTSTRIP_SIZE * 3) + "B", *keyval[1]        ))) # This is the led configuration
             
 

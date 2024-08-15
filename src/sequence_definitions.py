@@ -469,8 +469,8 @@ class UserDefinedSequence():
         #print(f"Replace {action}, {self.ud_parameters} -> {values}")
         previous_uds |= set([self.name]) # Have to make it a list so the set() doesn't split it into separate letters
         #Dissallow self-reference
-        if name in previous_uds:
-            raise RuntimeError(f"Self reference inside of user defined sequences is not allowed! Sequence {self.name}")
+        #if name in previous_uds: #TODO: check why this errors out even when not referencing
+        #    raise RuntimeError(f"Self reference inside of user defined sequences is not allowed! Sequence {self.name}")
         #This is because there's no actual way for us to exit this recursing loop, sequences are basic pre-defined actions, they don't have any real logic like variables inside
 
         for i in range(len(params)):

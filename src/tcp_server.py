@@ -28,7 +28,7 @@ class Server(T.Thread):
 
     '''
     def __init__(self, color_data: ColorFrameData, color_data_lock: T.Lock, max_timeouts = 20, HOST = "", PORT = 1000):
-        super().__init__()
+        super().__init__(daemon=True)
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.bind((HOST, PORT))
         self.socket.listen(1)
