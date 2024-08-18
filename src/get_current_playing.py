@@ -2,12 +2,12 @@
 # Credit goes to tameTNT | https://stackoverflow.com/questions/65011660/how-can-i-get-the-title-of-the-currently-playing-media-in-windows-10-with-python
 
 import asyncio
-import time
 from winrt.windows.media.control import \
     GlobalSystemMediaTransportControlsSessionManager as MediaManager
 
-
-async def get_media_info():
+sessions = None
+async def get_manager():
+    global sessions
     sessions = await MediaManager.request_async()
 
     # This source_app_user_model_id check and if statement is optional
@@ -18,6 +18,7 @@ async def get_media_info():
     # while the media you want to get is playing.
     # Then set TARGET_ID to the string this call returns.
 
+async def get_media_info():
     current_session = sessions.get_current_session()
     #print(current_session)
     if current_session:  # there needs to be a media session running
@@ -47,6 +48,8 @@ async def get_media_info():
 def GetCurrentlyPlaying():
     info = asyncio.run(get_media_info())
     return {"author":info["artist"], "title":info["title"]}
+
+asyncio.run(get_manager())
 
 
 if __name__ == "__main__":
