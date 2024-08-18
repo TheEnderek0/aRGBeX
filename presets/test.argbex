@@ -25,7 +25,6 @@
 
 
 <Playback>
-00:00:00 Static(All() Color(25 25 25))
 00:01:00 Slide(Checker(0 10 10) ColorShift(Color(255 255 255) Color(0 255 0) 3) 2 Single Reversed)
 //00:00:50 s1(2)
 //00:05:80 Static(All() ColorShift(     Color(255 255 255)      Color(0 255 0)      3    ) Hi from tags!)
