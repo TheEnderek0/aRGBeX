@@ -1,6 +1,6 @@
 #Stores definitions and internal code of classes representing sequences
 from globals_def import MAX_APS, LIGHTSTRIP_SIZE
-
+from random import randint
 class ARGBEX_BASE():
     construction_types = []
 
@@ -123,6 +123,18 @@ class Range(Selector):
         if end > LIGHTSTRIP_SIZE:
             end = LIGHTSTRIP_SIZE
         self.selection = list(range(start, end+1))
+
+class Random(Selector):
+    s_name = "Random"
+    construction_types = ["int"]
+    def __init__(self, max_leds):
+        self.selection = []
+        
+        for i in range(max_leds):
+            randitm = randint(1, LIGHTSTRIP_SIZE)
+            if not randitm in self.selection:
+                self.selection.append(randitm)
+
 
 
 #COLOR SPECIFIERS
