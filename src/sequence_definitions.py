@@ -126,14 +126,17 @@ class Range(Selector):
 
 class Random(Selector):
     s_name = "Random"
-    construction_types = ["int"]
-    def __init__(self, max_leds):
+    construction_types = ["int", "Tags"]
+    def __init__(self, max_leds, tags):
         self.selection = []
         
         for i in range(max_leds):
             randitm = randint(1, LIGHTSTRIP_SIZE)
             if not randitm in self.selection:
                 self.selection.append(randitm)
+        
+        if "Sorted" in tags:
+            self.selection.sort()
 
 
 
@@ -500,7 +503,7 @@ class UserDefinedSequence():
     
     def GetTimeline(self, parameters, previous_uds: set[str] = set()): # This is always computed at runtime, since we can use different variables
         if len(parameters) != len(self.ud_parameters):
-            raise RuntimeError(f"Wrong amount of numbers passed {parameters}, {self.ud_parameters}")
+            raise RuntimeError(f"Wrong amount of numbers passed {parameters}, {self.ud_parameters}, {self}")
         
         actions = self.actions_raw.copy() # Important that we don't touch the list in this class
 
