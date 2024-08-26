@@ -263,6 +263,25 @@ class ColorShift(Color):
         self.timeframe[int(self.operations * self.shiftTime)] = TimelineData(color=self.colorEnd)
 
 
+class ColorRand(Color):
+    construction_types = []
+
+    def __init__(self):
+        self.timeframe = {}
+        self.red = 0
+        self.green = 0
+        self.blue = 0
+
+    def ComputeTimeframe(self):
+        self.red = randint(0, 255)
+        self.blue = randint(0, 255)
+        self.green = randint(0, 255)
+
+        t = TimelineData()
+        t.color = self
+        self.timeframe[0] = t
+        return  
+
 class Tags(ARGBEX_BASE):
     construction_types = ["list"]
     tags = []
