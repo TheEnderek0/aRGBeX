@@ -1,0 +1,32 @@
+<Generic>
+
+<Sequences>
+
+stuff() {
+    Slide(Checker(0 10 10) ColorShift(Color(255 255 255) Color(0 255 0) 3) 2 Single Reversed)
+    Wait(2)
+    Slide(Checker(10 10 10) ColorShift(Color(255 255 255) Color(0 255 0) 2) 2 Single)
+    Wait(2)
+    Static(All() ColorShift(Color(0 255 0) Color(0 0 0) 1))
+}
+
+stuff1() {
+    Static(Checker(0 40 40) ColorShift(Color(0 0 0) Color(0 50 90) 1))
+    Wait(1)
+    Static(Checker(40 40 40) ColorShift(Color(0 0 0) Color(0 50 90) 1))
+}
+
+stuff2() {
+    Slide(Checker(0 10 10) ColorShift(Color(255 255 255) Color(0 255 255) 3) 2 Single Reversed)
+    Wait(2)
+    Slide(Checker(0 10 10) ColorShift(Color(0 255 255) Color(0 0 0) 3) 2 Single Reversed)
+    Wait(2)
+    Slide(Checker(10 10 10) ColorShift(Color(255 255 255) Color(0 0 0) 2) 2 Single)
+}
+
+
+<Playback>
+
+00:00:50 stuff()
+00:06:00 stuff1()
+00:08:50 stuff2()
