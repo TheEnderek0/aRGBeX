@@ -572,6 +572,12 @@ class UserDefinedSequence():
             
         #print(timeline_final)
         return timeline_final
+    
+    def __repr__(self) :
+        return f"<UDS: {self.name}>"
+    
+    def __str__(self):
+        return self.__repr__()
 
 
 class Wait(ARGBEX_BASE):
